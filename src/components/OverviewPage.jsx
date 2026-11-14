@@ -8,7 +8,7 @@ import PracticeStory from './PracticeStory';
 export default function OverviewPage({ onEnter }) {
   return (
     <div className="sl-landing">
-      <Header><nav className="site-navigation" aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="#learning">Learning first</a><button className="sl-button sl-button-small" onClick={onEnter}>Start Session <ArrowRight size={14} aria-hidden="true" /></button></nav></Header>
+      <Header><nav className="site-navigation" aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="#learning">Learning first</a><button className="sl-button sl-button-small" onClick={onEnter}>Start Session</button></nav></Header>
       <main>
         <section className="sl-hero" id="overview">
 
