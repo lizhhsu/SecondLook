@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  CheckCircle,
   BarChart2,
-  Sparkles,
   ThumbsUp,
   TrendingUp,
   BookOpen,
@@ -110,9 +108,6 @@ export default function SummaryView({ interventions, onRestart }) {
           >
             <X size={16} />
           </button>
-          <div className="summary-complete-icon">
-            <CheckCircle size={30} strokeWidth={1.5} />
-          </div>
           <h2 id="summary-title">Session Complete</h2>
           <p id="summary-description">
             {interventions.length ? 'Review the feedback from your session.' : 'Your screen-sharing session is complete.'}
@@ -123,7 +118,6 @@ export default function SummaryView({ interventions, onRestart }) {
           <div className="space-y-6">
             <div className="summary-feedback-card">
               <h3 className="summary-section-title">
-                <Sparkles size={20} />
                 <span>Session feedback</span>
               </h3>
 

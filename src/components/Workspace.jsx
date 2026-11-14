@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { OvershootScreenClient, MathTutorHelpers } from '../lib/overshoot';
 import InterventionCard from './InterventionCard';
 import SummaryView from './SummaryView';
-import { Square, Clock, MonitorUp } from 'lucide-react';
+import { Square, MonitorUp } from 'lucide-react';
 import LandingPage from './LandingPage';
 import Header from './Header';
 import { requestScreenShare, screenShareError } from '../lib/screenShare';
@@ -343,19 +343,19 @@ function Workspace({ onExitToHome }) {
 
   return (
     <div className="workspace">
-      <Header onHome={handleExitToHome} status={sessionActive && <span className="workspace-timer"><i className={hasLiveVideo ? 'is-live' : ''} />{formatTime(elapsedSeconds)}</span>} />
+      <Header onHome={handleExitToHome} status={sessionActive && <span className="workspace-timer">{formatTime(elapsedSeconds)}</span>} />
 
       {sessionActive && analysisStatus && <div role="status" className="workspace-notice"><MonitorUp size={16} aria-hidden="true" /><p>{analysisStatus}</p></div>}
 
       {sessionActive && <div className="workspace-layout">
         <main className="workspace-main">
-          <div className="workspace-section-heading"><span>YOUR WORKSPACE</span><span className="workspace-live-label"><i />Screen sharing</span></div>
+          <div className="workspace-section-heading"><span>YOUR WORKSPACE</span></div>
           <div className="workspace-preview">
             <div className="workspace-video-wrap">
               <video ref={videoRef} autoPlay playsInline muted className="workspace-video" />
               {(!videoReady || !hasLiveVideo) && <div className="workspace-waiting" role="status">Waiting for your screen…</div>}
             </div>
-            <span className="workspace-capture-status"><i className={hasLiveVideo ? 'is-live' : ''} />{!hasLiveVideo ? 'Waiting for stream…' : isAnalyzing ? 'Analyzing…' : analysisReady ? 'Ready for question' : 'Live preview'}</span>
+
             <InterventionCard intervention={currentIntervention} onClose={() => setCurrentIntervention(null)} />
           </div>
           <div className="workspace-controls">
@@ -369,9 +369,9 @@ function Workspace({ onExitToHome }) {
         </main>
 
         <aside className="workspace-history" aria-labelledby="workspace-history-title">
-          <div className="workspace-history-heading"><Clock size={18} aria-hidden="true" /><h2 id="workspace-history-title">Session history</h2><span>{interventions.length}</span></div>
+          <div className="workspace-history-heading"><h2 id="workspace-history-title">Session history</h2><span>{interventions.length}</span></div>
           <div className="workspace-history-body">
-            {interventions.length === 0 ? <div className="workspace-empty"><span className="workspace-empty-icon"><Clock size={24} strokeWidth={1.5} aria-hidden="true" /></span><h3>No feedback yet</h3><p>{analysisReady ? 'Feedback on your reasoning will appear here as you review your work.' : 'AI feedback will appear here when it’s available.'}</p></div> : interventions.map(item => {
+            {interventions.length === 0 ? <div className="workspace-empty"><h3>No feedback yet</h3><p>{analysisReady ? 'Feedback on your reasoning will appear here as you review your work.' : 'AI feedback will appear here when it’s available.'}</p></div> : interventions.map(item => {
               const correct = item.errorFound === false || item.category === 'Correct';
               return <button type="button" key={item.id} className={`workspace-feedback ${currentIntervention?.id === item.id ? 'is-selected' : ''}`} aria-pressed={currentIntervention?.id === item.id} onClick={() => setCurrentIntervention(item)}>
                 <span className="workspace-feedback-meta"><time>{item.timestamp}</time><span className={`workspace-category ${correct ? 'is-correct' : ''}`}>{item.category || 'Issue'}</span></span>

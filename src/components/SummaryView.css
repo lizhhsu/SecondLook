@@ -52,17 +52,6 @@
   background: #eaeaee;
   color: var(--text);
 }
-.summary-complete-icon {
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 16px;
-  border: 1px solid #dceafa;
-  border-radius: 50%;
-  background: #f0f7ff;
-  color: var(--blue);
-}
 .summary-dialog h2 {
   margin: 0 0 8px;
   font-family: var(--font-body);
@@ -159,9 +148,6 @@
   }
 }
 @media (max-height: 600px) {
-  .summary-complete-icon {
-    display: none;
-  }
   .summary-header {
     padding-top: 20px;
     padding-bottom: 16px;
