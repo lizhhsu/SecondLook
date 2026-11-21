@@ -5,6 +5,7 @@ export default function InterventionCard({ intervention, onClose }) {
   if (!intervention) return null;
 
   const isNoIssue = intervention.errorFound === false || intervention.category === 'Correct';
+  const needsReview = intervention.category === 'Needs review';
   const borderClass = isNoIssue ? 'border-emerald-500' : 'border-amber-500';
   const titleClass = isNoIssue ? 'text-emerald-600' : 'text-amber-600';
   const hintBoxClass = isNoIssue ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100';
@@ -15,7 +16,7 @@ export default function InterventionCard({ intervention, onClose }) {
       <div className="p-4">
         <div className="flex justify-between items-start mb-2">
           <div className={`flex items-center gap-2 ${titleClass} font-bold`}>
-            {isNoIssue ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+            {isNoIssue ? <CheckCircle2 size={18} /> : needsReview ? <Lightbulb size={18} /> : <AlertTriangle size={18} />}
             <span>{intervention.issueTitle || "Feedback"}</span>
           </div>
           <button onClick={onClose} aria-label="Dismiss feedback" className="text-gray-400 hover:text-gray-600">
@@ -29,7 +30,11 @@ export default function InterventionCard({ intervention, onClose }) {
           </p>
         )}
 
-        {intervention.incorrectSnippet && (
+        {intervention.transcription && (
+          <p className="text-gray-600 text-sm mb-3 break-words">Read as {intervention.transcription}</p>
+        )}
+
+        {intervention.incorrectSnippet && !intervention.transcription && (
           <div className="mb-3 text-sm text-gray-800">
             <span
               className="math-error-underline"

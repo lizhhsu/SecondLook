@@ -7,6 +7,8 @@ import LandingPage from './LandingPage';
 import Header from './Header';
 import { requestScreenShare, screenShareError } from '../lib/screenShare';
 import { checkBinomialSquare } from '../lib/binomialSquare';
+import { createHandwritingReader } from '../lib/handwriting';
+import EquationSelection from './EquationSelection';
 import './Workspace.css';
 
 function Workspace({ onExitToHome }) {
@@ -24,9 +26,11 @@ function Workspace({ onExitToHome }) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [questionEnded, setQuestionEnded] = useState(false);
   const [checkStatus, setCheckStatus] = useState('');
+  const [region, setRegion] = useState(null);
 
   const videoRef = useRef(null);
   const clientRef = useRef(null);
+  const handwritingRef = useRef(null);
   const captureRef = useRef(null);
   const attemptRef = useRef(0);
   const [videoReady, setVideoReady] = useState(false);
@@ -37,6 +41,8 @@ function Workspace({ onExitToHome }) {
     attemptRef.current += 1;
     clearTimeout(checkTimeoutRef.current);
     manualCheckRequestedRef.current = false;
+    handwritingRef.current?.stop();
+    handwritingRef.current = null;
     captureRef.current?.getTracks().forEach(track => track.stop());
     captureRef.current = null;
     if (clientRef.current) {
@@ -62,6 +68,7 @@ function Workspace({ onExitToHome }) {
     setAnalysisStatus('');
     manualCheckRequestedRef.current = false;
     setCheckStatus('');
+    setRegion(null);
   };
 
   const showFeedback = (result, endQuestion) => {
@@ -126,7 +133,7 @@ function Workspace({ onExitToHome }) {
     return await MathTutorHelpers.createErrorDetector(client, {
       onResultText: (text) => {
         const pending = manualCheckRequestedRef.current;
-        if (client !== clientRef.current || !pending) return;
+        if (client !== clientRef.current || !pending || pending.local) return;
         const result = parseOvershootResult(text);
         if (!result) return;
         clearTimeout(checkTimeoutRef.current);
@@ -138,7 +145,8 @@ function Workspace({ onExitToHome }) {
         if (client !== clientRef.current || !captureRef.current) return;
         console.error('Overshoot Error:', err);
         setAnalysisReady(false);
-        setAnalysisStatus('Screen sharing is active, but AI feedback disconnected.');
+        setAnalysisStatus('Live feedback disconnected. Select an equation to check it on this device.');
+        if (manualCheckRequestedRef.current?.local) return;
         manualCheckRequestedRef.current = false;
         clearTimeout(checkTimeoutRef.current);
         setIsAnalyzing(false);
@@ -173,7 +181,6 @@ function Workspace({ onExitToHome }) {
       setStarting(false);
       const apiKey = import.meta.env.VITE_OVERSHOOT_API_KEY;
       if (!apiKey) {
-        setAnalysisStatus('Screen sharing is active. AI feedback is unavailable on this site.');
         return;
       }
       setAnalysisStatus('Screen sharing is active. Connecting AI feedback…');
@@ -194,7 +201,7 @@ function Workspace({ onExitToHome }) {
         await client?.stop(true);
         if (attempt === attemptRef.current) {
           setAnalysisReady(false);
-          setAnalysisStatus('Screen sharing is active, but AI feedback could not connect.');
+          setAnalysisStatus('Live feedback could not connect. Select an equation to check it on this device.');
         }
       }
     } catch (err) {
@@ -209,10 +216,44 @@ function Workspace({ onExitToHome }) {
     }
   };
 
-  const handleCheck = (endQuestion) => {
-    if (questionEnded || manualCheckRequestedRef.current) return;
+  const handleCheck = async (endQuestion) => {
+    if (questionEnded || manualCheckRequestedRef.current || !hasLiveVideo) return;
     setCheckStatus('');
-    if (!analysisReady || !hasLiveVideo) return;
+    if (region) {
+      const attempt = attemptRef.current;
+      manualCheckRequestedRef.current = { endQuestion, local: true };
+      setCurrentIntervention(null);
+      setIsAnalyzing(true);
+      try {
+        handwritingRef.current ??= createHandwritingReader();
+        const transcription = await handwritingRef.current.read(videoRef.current, region);
+        if (attempt !== attemptRef.current) return;
+        if (transcription.trim()) {
+          const { checkHandwrittenMath } = await import('../lib/checkHandwrittenMath');
+          if (attempt !== attemptRef.current) return;
+          const result = checkHandwrittenMath(transcription);
+          showFeedback(result, endQuestion && result.errorFound !== undefined);
+        } else {
+          setCheckStatus('Select one handwritten equation on a plain background and try again.');
+        }
+      } catch {
+        if (attempt === attemptRef.current) {
+          handwritingRef.current?.stop();
+          handwritingRef.current = null;
+          setCheckStatus('Handwriting recognition could not finish. Try checking the equation again.');
+        }
+      } finally {
+        if (attempt === attemptRef.current) {
+          manualCheckRequestedRef.current = false;
+          setIsAnalyzing(false);
+        }
+      }
+      return;
+    }
+    if (!analysisReady) {
+      setCheckStatus('Drag a box around one handwritten equation in the preview first.');
+      return;
+    }
     manualCheckRequestedRef.current = { endQuestion };
     setCurrentIntervention(null);
     setIsAnalyzing(true);
@@ -227,6 +268,7 @@ function Workspace({ onExitToHome }) {
     setQuestionEnded(false);
     setCheckStatus('');
     setCurrentIntervention(null);
+    setRegion(null);
   };
 
   const handleEndSession = () => {
@@ -245,6 +287,8 @@ function Workspace({ onExitToHome }) {
       attemptRef.current += 1;
       clearTimeout(checkTimeoutRef.current);
       manualCheckRequestedRef.current = false;
+      handwritingRef.current?.stop();
+      handwritingRef.current = null;
       captureRef.current?.getTracks().forEach(track => track.stop());
       captureRef.current = null;
       void clientRef.current?.stop();
@@ -330,20 +374,20 @@ function Workspace({ onExitToHome }) {
           <div className="workspace-preview">
             <div className="workspace-video-wrap">
               <video ref={videoRef} autoPlay playsInline muted className="workspace-video" />
-              {(!videoReady || !hasLiveVideo) && <div className="workspace-waiting" role="status">Waiting for your screen…</div>}
+              {videoReady && hasLiveVideo
+                ? <EquationSelection videoRef={videoRef} region={region} onChange={setRegion} disabled={isAnalyzing || questionEnded} />
+                : <div className="workspace-waiting" role="status">Waiting for your screen…</div>}
             </div>
-
-            <InterventionCard intervention={currentIntervention} onClose={() => setCurrentIntervention(null)} />
           </div>
           <div className="workspace-controls">
-            <p role="status">{checkStatus || (isAnalyzing ? 'Checking your shared screen…' : 'Write your steps on the shared screen.')}</p>
+            <p role="status">{checkStatus || (isAnalyzing ? 'Reading your handwritten equation…' : 'Drag a box around one handwritten equation in the preview, then check it.')}</p>
             <div className="workspace-actions">
               {questionEnded ? (
                 <button onClick={handleNextQuestion} className="workspace-button workspace-button-primary">Next Question</button>
               ) : (
                 <>
-                  <button onClick={() => handleCheck(false)} disabled={isAnalyzing || !analysisReady || !hasLiveVideo} className="workspace-button workspace-button-primary">Check Step</button>
-                  <button onClick={() => handleCheck(true)} disabled={isAnalyzing || !analysisReady || !hasLiveVideo} className="workspace-button workspace-button-primary">End Question</button>
+                  <button onClick={() => handleCheck(false)} disabled={isAnalyzing || !hasLiveVideo} className="workspace-button workspace-button-primary">Check Step</button>
+                  <button onClick={() => handleCheck(true)} disabled={isAnalyzing || !hasLiveVideo} className="workspace-button workspace-button-primary">End Question</button>
                 </>
               )}
               <button onClick={handleEndSession} className="workspace-button workspace-button-end"><Square size={14} fill="currentColor" aria-hidden="true" />End Session</button>
@@ -353,8 +397,9 @@ function Workspace({ onExitToHome }) {
 
         <aside className="workspace-history" aria-labelledby="workspace-history-title">
           <div className="workspace-history-heading"><h2 id="workspace-history-title">Session history</h2><span>{interventions.length}</span></div>
+          <InterventionCard intervention={currentIntervention} onClose={() => setCurrentIntervention(null)} />
           <div className="workspace-history-body">
-            {interventions.length === 0 ? <div className="workspace-empty"><h3>No feedback yet</h3><p>{analysisReady ? 'Feedback on your reasoning will appear here as you review your work.' : 'AI feedback will appear here when it’s available.'}</p></div> : interventions.map(item => {
+            {interventions.length === 0 ? <div className="workspace-empty"><h3>No feedback yet</h3><p>Feedback on your handwritten work will appear here.</p></div> : interventions.map(item => {
               const correct = item.errorFound === false || item.category === 'Correct';
               return <button type="button" key={item.id} className={`workspace-feedback ${currentIntervention?.id === item.id ? 'is-selected' : ''}`} aria-pressed={currentIntervention?.id === item.id} onClick={() => setCurrentIntervention(item)}>
                 <span className="workspace-feedback-meta"><time>{item.timestamp}</time><span className={`workspace-category ${correct ? 'is-correct' : ''}`}>{item.category || 'Issue'}</span></span>

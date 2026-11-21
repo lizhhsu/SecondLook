@@ -11,7 +11,9 @@ npm ci
 npm run dev
 ```
 
-The landing page, interactive examples, and local screen-sharing preview work without credentials. Screen sharing requires HTTPS (or localhost), a supported desktop browser, and permission from the browser and operating system. Live AI analysis and AI summaries require the relevant provider keys. Copy `.env.example` to `.env.local` for local development. Vite exposes `VITE_` variables to browsers; use restricted development credentials and never include private keys in a public deployment. Existing imported credentials are preserved only in ignored `.env.private`, which Vite does not load automatically.
+The landing page, interactive examples, local screen sharing, and selected-equation checks work without credentials. Screen sharing requires HTTPS (or localhost), a supported desktop browser, and permission from the browser and operating system. In the preview, drag around one handwritten equation on a plain background and choose **Check Step** or **End Question**. The browser uses the [ink-on CoMER v0.1.0 model](https://github.com/kimseungdae/ink-on/releases/tag/v0.1.0) to read the selected pixels and checks arithmetic equations and polynomial rewrites. The feedback includes the transcription so you can compare it with your handwriting.
+
+Live full-screen AI analysis and AI summaries require the relevant provider keys. Copy `.env.example` to `.env.local` for local development. Vite exposes `VITE_` variables to browsers. Use restricted development credentials and keep private keys out of public deployments. Vite does not load the ignored `.env.private` file automatically.
 
 ```sh
 npm run build
@@ -24,4 +26,4 @@ The overview is the default page; `#how-it-works` and `#learning` link to its se
 
 ## GitHub Pages
 
-The Pages workflow builds and deploys pushes to `main`, and can also be run manually on another branch. In repository Settings → Pages, select **GitHub Actions** as the source. The public build includes no provider keys, so live AI features require a separate authenticated backend before public use.
+The Pages workflow builds and deploys pushes to `main`, and can also be run manually on another branch. In repository Settings → Pages, select **GitHub Actions** as the source. The public build runs selected-equation checks in the browser. Live full-screen AI analysis and AI summaries require a separate authenticated backend before public use.

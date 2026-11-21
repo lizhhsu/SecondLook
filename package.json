@@ -13,7 +13,10 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@overshoot/sdk": "^0.1.0-alpha.2",
+    "ink-on": "0.1.0",
     "lucide-react": "^0.562.0",
+    "nerdamer": "1.1.13",
+    "onnxruntime-web": "1.22.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },
