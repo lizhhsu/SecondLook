@@ -6,6 +6,7 @@ import { Square, MonitorUp } from 'lucide-react';
 import LandingPage from './LandingPage';
 import Header from './Header';
 import { requestScreenShare, screenShareError } from '../lib/screenShare';
+import { checkBinomialSquare } from '../lib/binomialSquare';
 import './Workspace.css';
 
 function Workspace({ onExitToHome }) {
@@ -22,6 +23,8 @@ function Workspace({ onExitToHome }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [questionEnded, setQuestionEnded] = useState(false);
+  const [equation, setEquation] = useState('');
+  const [checkStatus, setCheckStatus] = useState('');
 
   const videoRef = useRef(null);
   const clientRef = useRef(null);
@@ -29,10 +32,12 @@ function Workspace({ onExitToHome }) {
   const attemptRef = useRef(0);
   const [videoReady, setVideoReady] = useState(false);
   const manualCheckRequestedRef = useRef(false);
-  const feedbackLoggedRef = useRef(false);
+  const checkTimeoutRef = useRef(null);
 
   const stopScreenShare = async (showSummary) => {
     attemptRef.current += 1;
+    clearTimeout(checkTimeoutRef.current);
+    manualCheckRequestedRef.current = false;
     captureRef.current?.getTracks().forEach(track => track.stop());
     captureRef.current = null;
     if (clientRef.current) {
@@ -57,26 +62,23 @@ function Workspace({ onExitToHome }) {
     setAnalysisReady(false);
     setAnalysisStatus('');
     manualCheckRequestedRef.current = false;
-    feedbackLoggedRef.current = false;
+    setEquation('');
+    setCheckStatus('');
   };
 
-  const explanationsSimilar = (a, b) => {
-    if (!a || !b) return false;
-    const s1 = a.toLowerCase();
-    const s2 = b.toLowerCase();
-    if (s1 === s2) return true;
-    const maxLen = Math.max(s1.length, s2.length);
-    if (maxLen === 0) return true;
-    let same = 0;
-    const minLen = Math.min(s1.length, s2.length);
-    for (let i = 0; i < minLen; i += 1) {
-      if (s1[i] === s2[i]) same += 1;
-    }
-    const score = same / maxLen;
-    return score >= 0.9;
+  const showFeedback = (result, endQuestion) => {
+    const intervention = {
+      ...result,
+      id: crypto.randomUUID(),
+      source: 'manual_check',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    };
+    setInterventions(previous => [intervention, ...previous]);
+    setCurrentIntervention(intervention);
+    setQuestionEnded(endQuestion);
   };
 
-  const parseOvershootResult = (text, { allowNoError = false } = {}) => {
+  const parseOvershootResult = (text) => {
     const lines = String(text || '').split('\n');
     const data = {};
     let currentKey = null;
@@ -96,8 +98,12 @@ function Workspace({ onExitToHome }) {
       data[key] = String(data[key]).replace(/\n?<END>\s*$/g, '').replace(/<END>/g, '').trim();
     }
 
-    const errorFound = String(data.ERROR_FOUND || '').toLowerCase() === 'true';
-    if (!errorFound && !allowNoError) return null;
+    const lastLine = data.TRANSCRIPTION?.split('\n').filter(line => line.trim()).at(-1) || '';
+    const knownResult = checkBinomialSquare(lastLine);
+    if (knownResult) return knownResult;
+    const verdict = data.ERROR_FOUND?.toLowerCase();
+    if (verdict !== 'true' && verdict !== 'false') return null;
+    const errorFound = verdict === 'true';
 
     let boundingBox = null;
     if (data.BBOX && data.BBOX !== 'none') {
@@ -112,7 +118,7 @@ function Workspace({ onExitToHome }) {
       issueTitle: data.ISSUE_TITLE || (errorFound ? 'Misconception detected' : 'No issues detected'),
       explanation: data.EXPLANATION || '',
       hint: data.HINT || '',
-      category: data.CATEGORY || (errorFound ? 'Uncategorized' : 'Correct'),
+      category: errorFound ? data.CATEGORY || 'Uncategorized' : 'Correct',
       boundingBox,
       incorrectSnippet: data.TRANSCRIPTION || ''
     };
@@ -121,43 +127,22 @@ function Workspace({ onExitToHome }) {
   const startDetector = async (client) => {
     return await MathTutorHelpers.createErrorDetector(client, {
       onResultText: (text) => {
-        const isManual = manualCheckRequestedRef.current;
-        if (!isManual) return;
-        if (feedbackLoggedRef.current) return;
-
-        const result = parseOvershootResult(text, { allowNoError: true });
-        if (result) {
-          setInterventions(prev => {
-            const last = prev[0];
-            if (last && explanationsSimilar(last.explanation, result.explanation)) {
-              return prev;
-            }
-
-            const newIntervention = {
-              id: crypto.randomUUID(),
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              errorFound: result.errorFound,
-              source: isManual ? 'manual_check' : 'stream',
-              ...result
-            };
-
-            setCurrentIntervention(newIntervention);
-
-
-            return [newIntervention, ...prev];
-          });
-        }
-
-        feedbackLoggedRef.current = true;
+        const pending = manualCheckRequestedRef.current;
+        if (client !== clientRef.current || !pending) return;
+        const result = parseOvershootResult(text);
+        if (!result) return;
+        clearTimeout(checkTimeoutRef.current);
         manualCheckRequestedRef.current = false;
+        showFeedback(result, pending.endQuestion);
         setIsAnalyzing(false);
       },
       onError: (err) => {
+        if (client !== clientRef.current || !captureRef.current) return;
         console.error('Overshoot Error:', err);
         setAnalysisReady(false);
         setAnalysisStatus('Screen sharing is active, but AI feedback disconnected.');
         manualCheckRequestedRef.current = false;
-        feedbackLoggedRef.current = false;
+        clearTimeout(checkTimeoutRef.current);
         setIsAnalyzing(false);
       }
     });
@@ -181,7 +166,6 @@ function Workspace({ onExitToHome }) {
         if (captureRef.current === mediaStream) void stopScreenShare(false);
       }, { once: true });
       setQuestionEnded(false);
-      feedbackLoggedRef.current = false;
       setStream(mediaStream);
       setHasLiveVideo(false);
       setSessionActive(true);
@@ -227,30 +211,34 @@ function Workspace({ onExitToHome }) {
     }
   };
 
-  const handleEndQuestion = async () => {
-    if (!sessionActive || !stream || !clientRef.current || !analysisReady) return;
-    if (questionEnded) return;
-    manualCheckRequestedRef.current = true;
-    feedbackLoggedRef.current = false;
-    setIsAnalyzing(true);
-    setQuestionEnded(true);
-
-    try {
-      await clientRef.current.stop(true);
-      await startDetector(clientRef.current);
-    } catch (err) {
-      manualCheckRequestedRef.current = false;
-      feedbackLoggedRef.current = false;
-      setIsAnalyzing(false);
-      setQuestionEnded(false);
-      console.error('Manual check failed:', err);
+  const handleCheck = (endQuestion) => {
+    if (questionEnded || manualCheckRequestedRef.current) return;
+    setCheckStatus('');
+    const result = checkBinomialSquare(equation);
+    if (result) {
+      showFeedback(result, endQuestion);
+      return;
     }
+    if (!analysisReady || !hasLiveVideo) {
+      setCheckStatus(equation.trim()
+        ? 'Typed checks support the demo equation and its corrected expansion.'
+        : 'Type the demo equation to check it.');
+      return;
+    }
+    manualCheckRequestedRef.current = { endQuestion };
+    setCurrentIntervention(null);
+    setIsAnalyzing(true);
+    checkTimeoutRef.current = setTimeout(() => {
+      manualCheckRequestedRef.current = false;
+      setIsAnalyzing(false);
+      setCheckStatus('No screen feedback came back. Try again or type the demo equation.');
+    }, 15000);
   };
 
   const handleNextQuestion = () => {
-    if (!sessionActive || !stream || !clientRef.current) return;
     setQuestionEnded(false);
-    feedbackLoggedRef.current = false;
+    setEquation('');
+    setCheckStatus('');
     setCurrentIntervention(null);
   };
 
@@ -268,6 +256,8 @@ function Workspace({ onExitToHome }) {
   useEffect(() => {
     return () => {
       attemptRef.current += 1;
+      clearTimeout(checkTimeoutRef.current);
+      manualCheckRequestedRef.current = false;
       captureRef.current?.getTracks().forEach(track => track.stop());
       captureRef.current = null;
       void clientRef.current?.stop();
@@ -358,11 +348,21 @@ function Workspace({ onExitToHome }) {
 
             <InterventionCard intervention={currentIntervention} onClose={() => setCurrentIntervention(null)} />
           </div>
+          <div className="workspace-equation">
+            <label htmlFor="workspace-equation">Type the demo equation (optional)</label>
+            <input id="workspace-equation" value={equation} onChange={event => setEquation(event.target.value)} placeholder="(x+y)^2 = x^2+y^2" disabled={questionEnded || isAnalyzing} />
+          </div>
           <div className="workspace-controls">
-            <p>{analysisReady ? 'Work at your own pace. Check your reasoning when you’re ready.' : 'Your shared screen is shown above.'}</p>
+            <p role="status">{checkStatus || (isAnalyzing ? 'Checking your shared screen…' : 'Check each step as you go.')}</p>
             <div className="workspace-actions">
-              {analysisReady && <button onClick={handleEndQuestion} disabled={questionEnded || isAnalyzing || !hasLiveVideo} className="workspace-button workspace-button-primary">{isAnalyzing ? 'Analyzing…' : questionEnded ? 'Question ended' : 'End Question'}</button>}
-              {questionEnded && <button onClick={handleNextQuestion} className="workspace-button workspace-button-primary">Next Question</button>}
+              {questionEnded ? (
+                <button onClick={handleNextQuestion} className="workspace-button workspace-button-primary">Next Question</button>
+              ) : (
+                <>
+                  <button onClick={() => handleCheck(false)} disabled={isAnalyzing} className="workspace-button workspace-button-primary">Check Step</button>
+                  <button onClick={() => handleCheck(true)} disabled={isAnalyzing} className="workspace-button workspace-button-primary">End Question</button>
+                </>
+              )}
               <button onClick={handleEndSession} className="workspace-button workspace-button-end"><Square size={14} fill="currentColor" aria-hidden="true" />End Session</button>
             </div>
           </div>

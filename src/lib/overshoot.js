@@ -526,6 +526,7 @@ Task:
    - STRICTLY verify algebraic expansions and simplifications.
    - If a line equates two expressions that are NOT mathematically equivalent (e.g. (x-1)^2 + 3 = x^2 + 3x + 1), mark it as an ERROR unless it is clearly a "Solve for x" problem statement.
    - If the student expands a term incorrectly (e.g. (a+b)^2 = a^2 + b^2), flag it immediately.
+   - (x+y)^2 = x^2+y^2 is an incorrect expansion, even when it is the only line. Explain that the cross products xy and yx give 2xy and show the corrected expansion (x+y)^2 = x^2+2xy+y^2.
    - If the student simply wrote the problem statement (e.g. just "(x+3)(x+2)") without expanding it, that is NOT an error.
    - HARD RULE: If the student writes an equation that is mathematically FALSE (e.g., "(x+3)(x+2) = x^2 + 6"), mark it as ERROR_FOUND: true immediately, even if no intermediate steps are shown.
    - CRITICAL: If the student writes only the problem statement and NO work is shown (e.g., just "(x+3)(x+2)" or "Solve x+2=5" with nothing else), treat this as "no error found". Do NOT say it is incorrect because they haven't started.
