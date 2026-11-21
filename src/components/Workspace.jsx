@@ -11,6 +11,8 @@ import { createHandwritingReader } from '../lib/handwriting';
 import EquationSelection from './EquationSelection';
 import './Workspace.css';
 
+const fullFrame = { x: 0, y: 0, width: 1, height: 1 };
+
 function Workspace({ onExitToHome }) {
   const [sessionActive, setSessionActive] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -217,24 +219,31 @@ function Workspace({ onExitToHome }) {
   };
 
   const handleCheck = async (endQuestion) => {
-    if (questionEnded || manualCheckRequestedRef.current || !hasLiveVideo) return;
+    if (questionEnded || manualCheckRequestedRef.current) return;
+    if (!hasLiveVideo || !videoRef.current?.videoWidth) {
+      setCheckStatus('The shared preview is still waiting for a video frame. Once your handwriting is visible, check it again.');
+      return;
+    }
     setCheckStatus('');
-    if (region) {
+    if (region || !analysisReady) {
       const attempt = attemptRef.current;
       manualCheckRequestedRef.current = { endQuestion, local: true };
       setCurrentIntervention(null);
       setIsAnalyzing(true);
       try {
         handwritingRef.current ??= createHandwritingReader();
-        const transcription = await handwritingRef.current.read(videoRef.current, region);
+        const transcription = await handwritingRef.current.read(videoRef.current, region || fullFrame);
         if (attempt !== attemptRef.current) return;
         if (transcription.trim()) {
           const { checkHandwrittenMath } = await import('../lib/checkHandwrittenMath');
           if (attempt !== attemptRef.current) return;
           const result = checkHandwrittenMath(transcription);
+          if (!region && result.errorFound === undefined) {
+            setCheckStatus('I couldn’t isolate one equation. Drag a box around the handwritten line and check again.');
+          }
           showFeedback(result, endQuestion && result.errorFound !== undefined);
         } else {
-          setCheckStatus('Select one handwritten equation on a plain background and try again.');
+          setCheckStatus('I couldn’t see an equation. Drag a box around one handwritten line on a plain background and check again.');
         }
       } catch {
         if (attempt === attemptRef.current) {
@@ -248,10 +257,6 @@ function Workspace({ onExitToHome }) {
           setIsAnalyzing(false);
         }
       }
-      return;
-    }
-    if (!analysisReady) {
-      setCheckStatus('Drag a box around one handwritten equation in the preview first.');
       return;
     }
     manualCheckRequestedRef.current = { endQuestion };
@@ -380,14 +385,14 @@ function Workspace({ onExitToHome }) {
             </div>
           </div>
           <div className="workspace-controls">
-            <p role="status">{checkStatus || (isAnalyzing ? 'Reading your handwritten equation…' : 'Drag a box around one handwritten equation in the preview, then check it.')}</p>
+            <p>Check a handwritten equation in the preview. If several lines are visible, drag a box around the one you want to check.</p>
             <div className="workspace-actions">
               {questionEnded ? (
                 <button onClick={handleNextQuestion} className="workspace-button workspace-button-primary">Next Question</button>
               ) : (
                 <>
-                  <button onClick={() => handleCheck(false)} disabled={isAnalyzing || !hasLiveVideo} className="workspace-button workspace-button-primary">Check Step</button>
-                  <button onClick={() => handleCheck(true)} disabled={isAnalyzing || !hasLiveVideo} className="workspace-button workspace-button-primary">End Question</button>
+                  <button onClick={() => handleCheck(false)} disabled={isAnalyzing} className="workspace-button workspace-button-primary">Check Step</button>
+                  <button onClick={() => handleCheck(true)} disabled={isAnalyzing} className="workspace-button workspace-button-primary">End Question</button>
                 </>
               )}
               <button onClick={handleEndSession} className="workspace-button workspace-button-end"><Square size={14} fill="currentColor" aria-hidden="true" />End Session</button>
@@ -397,9 +402,12 @@ function Workspace({ onExitToHome }) {
 
         <aside className="workspace-history" aria-labelledby="workspace-history-title">
           <div className="workspace-history-heading"><h2 id="workspace-history-title">Session history</h2><span>{interventions.length}</span></div>
+          <div role="status" className={isAnalyzing || checkStatus ? 'workspace-check-status' : undefined}>
+            {isAnalyzing ? 'Reading your handwriting. The first check may take a little longer while the recognition model loads.' : checkStatus}
+          </div>
           <InterventionCard intervention={currentIntervention} onClose={() => setCurrentIntervention(null)} />
           <div className="workspace-history-body">
-            {interventions.length === 0 ? <div className="workspace-empty"><h3>No feedback yet</h3><p>Feedback on your handwritten work will appear here.</p></div> : interventions.map(item => {
+            {interventions.length === 0 ? !isAnalyzing && !checkStatus && <div className="workspace-empty"><h3>No feedback yet</h3><p>Feedback on your handwritten work will appear here.</p></div> : interventions.map(item => {
               const correct = item.errorFound === false || item.category === 'Correct';
               return <button type="button" key={item.id} className={`workspace-feedback ${currentIntervention?.id === item.id ? 'is-selected' : ''}`} aria-pressed={currentIntervention?.id === item.id} onClick={() => setCurrentIntervention(item)}>
                 <span className="workspace-feedback-meta"><time>{item.timestamp}</time><span className={`workspace-category ${correct ? 'is-correct' : ''}`}>{item.category || 'Issue'}</span></span>

@@ -218,6 +218,16 @@
   overflow-y: auto;
   padding: 16px;
 }
+.workspace-check-status {
+  margin: 16px 16px 0;
+  padding: 12px 14px;
+  border: 1px solid #dce9f7;
+  border-radius: 12px;
+  background: #f0f7ff;
+  color: #365a7e;
+  font-size: 13px;
+  line-height: 1.5;
+}
 .workspace-empty {
   padding: 50px 14px;
   text-align: center;

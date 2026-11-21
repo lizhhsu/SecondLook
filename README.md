@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-The landing page, interactive examples, local screen sharing, and selected-equation checks work without credentials. Screen sharing requires HTTPS (or localhost), a supported desktop browser, and permission from the browser and operating system. In the preview, drag around one handwritten equation on a plain background and choose **Check Step** or **End Question**. The browser uses the [ink-on CoMER v0.1.0 model](https://github.com/kimseungdae/ink-on/releases/tag/v0.1.0) to read the selected pixels and checks arithmetic equations and polynomial rewrites. The feedback includes the transcription so you can compare it with your handwriting.
+The landing page, interactive examples, local screen sharing, and handwritten equation checks work without credentials. Screen sharing requires HTTPS (or localhost), a supported desktop browser, and permission from the browser and operating system. Show one handwritten equation on a plain background and choose **Check Step** or **End Question**. If several lines are visible, drag around the equation you want to check. The browser uses the [ink-on CoMER v0.1.0 model](https://github.com/kimseungdae/ink-on/releases/tag/v0.1.0) to read the pixels and checks arithmetic equations and polynomial rewrites. The feedback includes the transcription so you can compare it with your handwriting.
 
 Live full-screen AI analysis and AI summaries require the relevant provider keys. Copy `.env.example` to `.env.local` for local development. Vite exposes `VITE_` variables to browsers. Use restricted development credentials and keep private keys out of public deployments. Vite does not load the ignored `.env.private` file automatically.
 
