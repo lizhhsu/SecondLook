@@ -23,7 +23,6 @@ function Workspace({ onExitToHome }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [questionEnded, setQuestionEnded] = useState(false);
-  const [equation, setEquation] = useState('');
   const [checkStatus, setCheckStatus] = useState('');
 
   const videoRef = useRef(null);
@@ -62,7 +61,6 @@ function Workspace({ onExitToHome }) {
     setAnalysisReady(false);
     setAnalysisStatus('');
     manualCheckRequestedRef.current = false;
-    setEquation('');
     setCheckStatus('');
   };
 
@@ -214,30 +212,19 @@ function Workspace({ onExitToHome }) {
   const handleCheck = (endQuestion) => {
     if (questionEnded || manualCheckRequestedRef.current) return;
     setCheckStatus('');
-    const result = checkBinomialSquare(equation);
-    if (result) {
-      showFeedback(result, endQuestion);
-      return;
-    }
-    if (!analysisReady || !hasLiveVideo) {
-      setCheckStatus(equation.trim()
-        ? 'Typed checks support the demo equation and its corrected expansion.'
-        : 'Type the demo equation to check it.');
-      return;
-    }
+    if (!analysisReady || !hasLiveVideo) return;
     manualCheckRequestedRef.current = { endQuestion };
     setCurrentIntervention(null);
     setIsAnalyzing(true);
     checkTimeoutRef.current = setTimeout(() => {
       manualCheckRequestedRef.current = false;
       setIsAnalyzing(false);
-      setCheckStatus('No screen feedback came back. Try again or type the demo equation.');
+      setCheckStatus('No screen feedback came back. Keep your handwritten work visible and try again.');
     }, 15000);
   };
 
   const handleNextQuestion = () => {
     setQuestionEnded(false);
-    setEquation('');
     setCheckStatus('');
     setCurrentIntervention(null);
   };
@@ -348,19 +335,15 @@ function Workspace({ onExitToHome }) {
 
             <InterventionCard intervention={currentIntervention} onClose={() => setCurrentIntervention(null)} />
           </div>
-          <div className="workspace-equation">
-            <label htmlFor="workspace-equation">Type the demo equation (optional)</label>
-            <input id="workspace-equation" value={equation} onChange={event => setEquation(event.target.value)} placeholder="(x+y)^2 = x^2+y^2" disabled={questionEnded || isAnalyzing} />
-          </div>
           <div className="workspace-controls">
-            <p role="status">{checkStatus || (isAnalyzing ? 'Checking your shared screen…' : 'Check each step as you go.')}</p>
+            <p role="status">{checkStatus || (isAnalyzing ? 'Checking your shared screen…' : 'Write your steps on the shared screen.')}</p>
             <div className="workspace-actions">
               {questionEnded ? (
                 <button onClick={handleNextQuestion} className="workspace-button workspace-button-primary">Next Question</button>
               ) : (
                 <>
-                  <button onClick={() => handleCheck(false)} disabled={isAnalyzing} className="workspace-button workspace-button-primary">Check Step</button>
-                  <button onClick={() => handleCheck(true)} disabled={isAnalyzing} className="workspace-button workspace-button-primary">End Question</button>
+                  <button onClick={() => handleCheck(false)} disabled={isAnalyzing || !analysisReady || !hasLiveVideo} className="workspace-button workspace-button-primary">Check Step</button>
+                  <button onClick={() => handleCheck(true)} disabled={isAnalyzing || !analysisReady || !hasLiveVideo} className="workspace-button workspace-button-primary">End Question</button>
                 </>
               )}
               <button onClick={handleEndSession} className="workspace-button workspace-button-end"><Square size={14} fill="currentColor" aria-hidden="true" />End Session</button>
